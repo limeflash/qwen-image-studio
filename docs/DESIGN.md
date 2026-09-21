@@ -483,3 +483,67 @@ memory (1536×1536). Try a smaller size or Q6_K.`
 - No tray icon — but if added later, the tunnel process survives window close and the URL changes
   far less often; the UI needs no change for it. The full fix is a named Cloudflare tunnel with a
   stable hostname, out of scope here.
+
+---
+
+## 9. Polish pass, after the hardware spoke
+
+Measured numbers changed three things the original spec guessed at. Canvas of the artboards:
+the Design artifact for this project.
+
+### Size picker
+
+The prompt row always made 1024×1024. That was a default, not a limit: 256–2048 per side works,
+each side a multiple of 32, any aspect, and even 2048² leaves ~4 GB clear. So the row gained a
+second line of chips — **not a dropdown**. Nothing on this panel pops up; heights are reserved
+whether or not they are in use, and a menu would be the only element that violates that.
+
+Four presets (1024², 16:9, 9:16, 2048²) plus a `Transparent` chip pushed to the right edge, since
+it is a different kind of choice. Each chip carries a proportional rectangle drawn in
+`currentColor`, so the aspect is legible before the numbers are read. Selected chip fills
+`--surface-2`; the rest sit on the panel. The chip never takes the accent — the accent belongs to
+whatever the app needs next, and a size is never that.
+
+Chips over two number fields because the choice is made once and reused, and because a preset can
+carry its cost: `2048 × 2048 · 3 min` says the wait up front. That is a fact known in advance, not
+a progress bar, so it does not break the no-fake-progress rule.
+
+The whole row dims to 50% and stops taking clicks when the engine is not Ready, matching the
+prompt box beside it.
+
+### A long job says how far in it is
+
+`Generating 1024×1024 · 38 s of about 75`. The estimate comes from the measured baseline —
+1024² at 20 steps is about 75 s, and cost tracks pixel count — multiplied by 4.5 for an edit,
+which pays for the vision encoder on the CPU. Elapsed is real, the estimate is labelled "about",
+and neither is drawn as a bar.
+
+The 15-second Loading state needs nothing more than its counter: the VRAM gauge filling *is* the
+progress, and at that length a spinner would appear and vanish before it meant anything.
+
+### A third tier state
+
+There were two: on disk, and not on disk (a down arrow before the size). Q8_0 needs a third —
+listed, downloadable, and certain not to run on this card. It gets a **dashed** border and
+`--fg-3` text, and stays clickable, because the person may put a bigger card in the machine
+without the app ever knowing.
+
+### Motion, pinned to curves
+
+| What | Property | Duration | Easing |
+|---|---|---|---|
+| Status dot, Loading only | opacity 1 → .35 → 1 | 1600 ms | `cubic-bezier(.4, 0, .6, 1)`, infinite |
+| Gauge and bar fills | width, background-color | 400 ms | linear — it tracks a 1 Hz sample |
+| Tunnel toggle knob | transform, 14 px | 120 ms | `cubic-bezier(0, 0, .2, 1)` |
+| Hover on any control | background-color | 80 ms | linear |
+| A new thumbnail | opacity 0 → 1 | 200 ms | `cubic-bezier(0, 0, .2, 1)`, on insert only |
+
+**Surviving the once-a-second render.** Every list keeps the markup it last drew and is written
+only when the string differs, so a thumbnail is never recreated and never re-fades — this was a
+real bug: the gallery blinked every second before the memo went in. The breathing dot is a class
+toggled by state, not an animation restarted on each pass. Widths are style values, so an
+unchanged value transitions to itself and stands still.
+
+**Never animates:** position or size of anything; the heading word (it swaps); the install screen
+handing over to the panel — the heading slot does not move, so there is nothing to cross-fade;
+button labels; the accent moving between controls, which is a state and not a journey.

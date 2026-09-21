@@ -183,21 +183,41 @@ async fn retry_download(st: State<'_, Shared>, id: String) -> Result<(), String>
 }
 
 #[tauri::command]
-async fn test_generate(st: State<'_, Shared>, prompt: String) -> Result<(), String> {
+async fn test_generate(
+    st: State<'_, Shared>,
+    prompt: String,
+    width: u32,
+    height: u32,
+    transparent: bool,
+) -> Result<(), String> {
     let s = st.inner().clone();
     tauri::async_runtime::spawn(async move {
-        s.set_busy(Some("Generating 1024×1024".into())).await;
+        let (w, h) = ((width / 32) * 32, (height / 32) * 32);
+        let eta = engine::eta_secs(w, h, 20);
+        s.set_busy(Some(format!("Generating {w}×{h}")), Some(eta)).await;
+
+        // The model writes its own alpha; asking for it is a prompt, not a flag.
+        let sent = if transparent {
+            format!(
+                "This is an RGBA image with transparency. {}. The image has alpha channel                  and the background is transparent.",
+                prompt.trim_end_matches(['.', ' '])
+            )
+        } else {
+            prompt.clone()
+        };
+
         let out = engine::generate(engine::GenRequest {
-            prompt: prompt.clone(),
+            prompt: sent,
             negative: String::new(),
-            width: 1024,
-            height: 1024,
+            width: w,
+            height: h,
             steps: 20,
             seed: -1,
             refs: vec![],
         })
         .await;
-        s.set_busy(None).await;
+        s.set_busy(None, None).await;
+
         match out {
             Ok(png) => {
                 let dir = s.cfg.lock().await.outputs_dir();
@@ -208,11 +228,12 @@ async fn test_generate(st: State<'_, Shared>, prompt: String) -> Result<(), Stri
                     s.push_gallery(state::GalleryItem {
                         path: path.to_string_lossy().to_string(),
                         prompt,
-                        width: 1024,
-                        height: 1024,
+                        width: w,
+                        height: h,
                         at: chrono::Local::now().format("%H:%M").to_string(),
                     });
                 }
+                s.engine.lock().await.last_oom = None;
             }
             Err(e) => s.engine.lock().await.last_oom = Some(e.to_string()),
         }

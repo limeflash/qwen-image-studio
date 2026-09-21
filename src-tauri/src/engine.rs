@@ -26,6 +26,9 @@ pub struct Engine {
     /// Set when a generation fails for lack of VRAM; cleared on the next success.
     pub last_oom: Option<String>,
     pub busy: Option<String>,
+    pub busy_since: Option<Instant>,
+    /// Seconds this job is expected to take, from the measured 1024² baseline.
+    pub busy_eta: Option<u64>,
 }
 
 impl Default for Status {
@@ -198,6 +201,14 @@ fn friendly(raw: &str) -> String {
     } else {
         raw.into()
     }
+}
+
+/// Measured: 1024² at 20 steps takes about 75 s, and the cost tracks pixel count
+/// almost linearly (2048² came in at roughly six times 1024²). Good enough to put a
+/// number beside the elapsed seconds instead of inventing a progress bar.
+pub fn eta_secs(w: u32, h: u32, steps: u32) -> u64 {
+    let px = (w as f64 * h as f64) / (1024.0 * 1024.0);
+    (px * 75.0 * (steps as f64 / 20.0)).round().max(5.0) as u64
 }
 
 /// (used MiB, total MiB). Returns None when nvidia-smi is unavailable.

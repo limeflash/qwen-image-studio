@@ -61,9 +61,13 @@
   <hr class="rule" />
 
   <div class="prompt">
+    <label class="sr" for="prompt">Prompt</label>
     <input id="prompt" type="text" placeholder="Try a prompt" />
     <button id="generate" class="pill sm ghost">Generate</button>
   </div>
+
+  <!-- Sizes sit in the open, not behind a dropdown: nothing on this panel pops up. -->
+  <div id="sizes" class="sizes"></div>
 
   <div class="gallery-head">
     <span id="recent" class="section">Recent</span>

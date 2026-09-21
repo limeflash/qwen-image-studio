@@ -57,6 +57,8 @@ pub struct Snapshot {
     pub loaded_tier: Option<String>,
     pub selected_tier: String,
     pub busy: Option<String>,
+    pub busy_elapsed: Option<u64>,
+    pub busy_eta: Option<u64>,
     pub load_elapsed: Option<u64>,
     pub last_load_secs: Option<u64>,
     pub last_oom: Option<String>,
@@ -122,8 +124,12 @@ impl AppState {
         g.truncate(8);
     }
 
-    pub async fn set_busy(&self, what: Option<String>) {
-        self.engine.lock().await.busy = what;
+    pub async fn set_busy(&self, what: Option<String>, eta: Option<u64>) {
+        let mut e = self.engine.lock().await;
+        e.busy_since = what.is_some().then(std::time::Instant::now);
+        e.busy_eta = eta;
+        e.busy = what;
+        drop(e);
         self.emit().await;
     }
 
@@ -213,6 +219,8 @@ impl AppState {
             loaded_tier: eng.loaded_tier.clone(),
             selected_tier: cfg.tier.clone(),
             busy: eng.busy.clone(),
+            busy_elapsed: eng.busy_since.map(|t| t.elapsed().as_secs()),
+            busy_eta: eng.busy_eta,
             load_elapsed: eng.load_started.map(|t| t.elapsed().as_secs()),
             last_load_secs: cfg.last_load_secs,
             last_oom: eng.last_oom.clone(),

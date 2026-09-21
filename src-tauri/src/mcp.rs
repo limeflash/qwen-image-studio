@@ -148,18 +148,24 @@ impl Qwen {
             a.prompt
         };
 
-        self.state.set_busy(Some(format!("Generating {w}×{h}"))).await;
+        let steps = a.steps.unwrap_or(20).clamp(1, 60);
+        self.state
+            .set_busy(
+                Some(format!("Generating {w}×{h}")),
+                Some(engine::eta_secs(w, h, steps)),
+            )
+            .await;
         let out = engine::generate(GenRequest {
             prompt: sent,
             negative: a.negative_prompt.unwrap_or_default(),
             width: w,
             height: h,
-            steps: a.steps.unwrap_or(20).clamp(1, 60),
+            steps,
             seed: a.seed.unwrap_or(-1),
             refs: vec![],
         })
         .await;
-        self.state.set_busy(None).await;
+        self.state.set_busy(None, None).await;
 
         self.deliver(out.map_err(|e| err(e.to_string()))?, &prompt, w, h)
             .await
@@ -202,18 +208,25 @@ impl Qwen {
             a.prompt
         };
 
-        self.state.set_busy(Some("Editing".into())).await;
+        let steps = a.steps.unwrap_or(20).clamp(1, 60);
+        // Editing pays for the vision encoder on the CPU: measured ~4.5x a plain generate.
+        self.state
+            .set_busy(
+                Some("Editing".into()),
+                Some(engine::eta_secs(w, h, steps) * 9 / 2),
+            )
+            .await;
         let out = engine::generate(GenRequest {
             prompt: sent,
             negative: String::new(),
             width: w,
             height: h,
-            steps: a.steps.unwrap_or(20).clamp(1, 60),
+            steps,
             seed: a.seed.unwrap_or(-1),
             refs,
         })
         .await;
-        self.state.set_busy(None).await;
+        self.state.set_busy(None, None).await;
 
         self.deliver(out.map_err(|e| err(e.to_string()))?, &prompt, w, h)
             .await

@@ -12,6 +12,18 @@ let S = null;
 let copiedUntil = 0;
 let copiedWhich = null;
 
+/* Measured on a 16 GB card: cost tracks pixel count, 1024² ≈ 75 s at 20 steps. */
+const SIZES = [
+  { w: 1024, h: 1024, rw: 9, rh: 9 },
+  { w: 1664, h: 928, rw: 12, rh: 7 },
+  { w: 928, h: 1664, rw: 7, rh: 12 },
+  { w: 2048, h: 2048, rw: 11, rh: 11 },
+];
+let size = SIZES[0];
+let alpha = false;
+const etaOf = (s) => Math.round((s.w * s.h) / (1024 * 1024) * 75);
+const etaText = (sec) => (sec < 90 ? `${Math.round(sec / 5) * 5} s` : `${Math.round(sec / 60)} min`);
+
 /* The panel re-renders every second. Writing identical innerHTML still restarts CSS
    animations and drops hover state, so each list keeps the last markup it drew. */
 const memo = new Map();
@@ -93,7 +105,11 @@ function renderHead(s, blue) {
   } else if (k === "stopping") {
     sub.textContent = "Stopping…";
   } else if (k === "ready") {
-    if (s.busy) sub.textContent = `${s.busy}…`;
+    if (s.busy)
+      sub.textContent =
+        s.busy_eta && s.busy_elapsed != null
+          ? `${s.busy} · ${s.busy_elapsed} s of about ${s.busy_eta}`
+          : `${s.busy}…`;
     else if (s.last_oom) { sub.className = "subline bad"; sub.textContent = s.last_oom; }
     else if (s.loaded_tier !== s.selected_tier)
       sub.textContent = `Running ${tierOf(s.loaded_tier)} · ${tierOf(s.selected_tier)} selected — restart to switch`;
@@ -194,7 +210,7 @@ function renderInstall(s, blue) {
 function renderTiers(el, s, live) {
   const html = s.tiers
     .map((t) => {
-      const sel = t.id === s.selected_tier ? " sel" : "";
+      const sel = (t.id === s.selected_tier ? " sel" : "") + (t.fits ? "" : " unfit");
       const loaded = live && s.loaded_tier === t.id ? '<span class="loaded"></span>' : "";
       const size = `${t.on_disk ? "" : ARROW + " "}${GB(t.size)} GB`;
       const dis = live && s.status.kind === "loading" ? "disabled" : "";
@@ -356,6 +372,32 @@ async function copyPrompt(text) {
   setTimeout(() => { promptCopiedUntil = 0; render(S); }, 1600);
 }
 
+function renderSizes(s) {
+  const ready = s.status.kind === "ready";
+  const html =
+    SIZES.map((z) => {
+      const on = z === size ? " on" : "";
+      const eta = z.w * z.h > 1024 * 1024 ? `<span class="eta">· ${etaText(etaOf(z))}</span>` : "";
+      return `<button class="chip${on}" data-w="${z.w}" data-h="${z.h}">
+        <span class="ratio" style="width:${z.rw}px;height:${z.rh}px"></span>${z.w} × ${z.h}${eta}</button>`;
+    }).join("") +
+    `<button class="chip alpha${alpha ? " on" : ""}" data-alpha="1" aria-pressed="${alpha}">
+      <span class="ratio"></span>Transparent</button>`;
+
+  paint($("sizes"), html, () => {
+    $("sizes").querySelectorAll("[data-w]").forEach((b) => {
+      b.onclick = () => {
+        size = SIZES.find((z) => z.w === +b.dataset.w && z.h === +b.dataset.h) || SIZES[0];
+        render(S);
+      };
+    });
+    const a = $("sizes").querySelector("[data-alpha]");
+    if (a) a.onclick = () => { alpha = !alpha; render(S); };
+  });
+  $("sizes").style.opacity = ready ? "1" : ".5";
+  $("sizes").style.pointerEvents = ready ? "" : "none";
+}
+
 function renderPanel(s, blue) {
   renderGauge(s);
   renderTiers($("tiers-panel"), s, true);
@@ -369,6 +411,7 @@ function renderPanel(s, blue) {
   gen.disabled = !ready;
   gen.textContent = s.busy ? "Generating…" : "Generate";
 
+  renderSizes(s);
   renderGallery(s);
 }
 
@@ -398,7 +441,9 @@ $("copy-local").onclick = () => copy(S?.local_url, "local");
 $("open-folder").onclick = () => invoke("reveal", { path: null });
 $("generate").onclick = () => {
   const v = $("prompt").value.trim();
-  if (v) { invoke("test_generate", { prompt: v }); $("prompt").value = ""; }
+  if (!v) return;
+  invoke("test_generate", { prompt: v, width: size.w, height: size.h, transparent: alpha });
+  $("prompt").value = "";
 };
 $("prompt").onkeydown = (e) => { if (e.key === "Enter") $("generate").click(); };
 
