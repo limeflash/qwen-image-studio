@@ -213,13 +213,19 @@ pub fn eta_secs(w: u32, h: u32, steps: u32) -> u64 {
 
 /// (used MiB, total MiB). Returns None when nvidia-smi is unavailable.
 pub fn vram() -> Option<(u64, u64)> {
-    let out = std::process::Command::new("nvidia-smi")
-        .args([
-            "--query-gpu=memory.used,memory.total",
-            "--format=csv,noheader,nounits",
-        ])
-        .output()
-        .ok()?;
+    let mut cmd = std::process::Command::new("nvidia-smi");
+    cmd.args([
+        "--query-gpu=memory.used,memory.total",
+        "--format=csv,noheader,nounits",
+    ]);
+    // Polled once a second for the gauge. Without this the console window it opens
+    // flashes on screen every second.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    let out = cmd.output().ok()?;
     let s = String::from_utf8_lossy(&out.stdout);
     let line = s.lines().next()?;
     let mut it = line.split(',').map(|p| p.trim().parse::<u64>().ok());
