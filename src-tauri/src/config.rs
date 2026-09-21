@@ -164,3 +164,84 @@ pub fn random_secret() -> String {
     rand::rng().fill(&mut b);
     hex::encode(b)
 }
+
+// ---------------------------------------------------------------- disk
+
+/// Free bytes on the volume holding `path`. Walks up until a directory exists,
+/// so it answers for a folder that has not been created yet.
+#[cfg(windows)]
+pub fn free_bytes(path: &Path) -> Option<u64> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
+
+    let mut probe = path.to_path_buf();
+    while !probe.exists() {
+        probe = probe.parent()?.to_path_buf();
+    }
+    let wide: Vec<u16> = probe
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let mut free: u64 = 0;
+    // SAFETY: `wide` is a NUL-terminated path and `free` is a valid out-pointer.
+    let ok = unsafe {
+        GetDiskFreeSpaceExW(
+            wide.as_ptr(),
+            &mut free,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+        )
+    };
+    (ok != 0).then_some(free)
+}
+
+#[cfg(not(windows))]
+pub fn free_bytes(_path: &Path) -> Option<u64> {
+    None
+}
+
+/// Total bytes the current tier plus every shared asset will occupy.
+pub fn install_size(tier_id: &str) -> u64 {
+    tier(tier_id).size + ASSETS.iter().map(|a| a.size).sum::<u64>()
+}
+
+/// 15 GB does not belong on a system drive by default. Pick the fixed volume with
+/// the most room and put a plainly named folder at its root; the user can move it.
+#[cfg(windows)]
+pub fn default_root() -> PathBuf {
+    use windows_sys::Win32::Storage::FileSystem::{GetDriveTypeW, GetLogicalDrives};
+    const DRIVE_FIXED: u32 = 3;
+
+    // SAFETY: no arguments, returns a bitmask of present drive letters.
+    let mask = unsafe { GetLogicalDrives() };
+    let mut best: Option<(u64, PathBuf)> = None;
+    for i in 0..26u32 {
+        if mask & (1 << i) == 0 {
+            continue;
+        }
+        let letter = (b'A' + i as u8) as char;
+        let root = format!("{letter}:\\");
+        let wide: Vec<u16> = root.encode_utf16().chain(std::iter::once(0)).collect();
+        // SAFETY: `wide` is a NUL-terminated volume path.
+        if unsafe { GetDriveTypeW(wide.as_ptr()) } != DRIVE_FIXED {
+            continue;
+        }
+        let p = PathBuf::from(&root);
+        if let Some(free) = free_bytes(&p) {
+            if best.as_ref().is_none_or(|(b, _)| free > *b) {
+                best = Some((free, p.join("Qwen Image Studio")));
+            }
+        }
+    }
+    best.map(|(_, p)| p).unwrap_or_else(|| {
+        std::env::var("LOCALAPPDATA")
+            .map(|d| PathBuf::from(d).join("Qwen Image Studio"))
+            .unwrap_or_else(|_| PathBuf::from("Qwen Image Studio"))
+    })
+}
+
+#[cfg(not(windows))]
+pub fn default_root() -> PathBuf {
+    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+}

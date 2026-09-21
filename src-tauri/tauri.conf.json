@@ -39,6 +39,21 @@
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/icon.ico"
-    ]
+    ],
+    "publisher": "limeflash",
+    "copyright": "MIT. Model weights remain under the Qwen Research License.",
+    "shortDescription": "Local Qwen-Image-2.1 as an MCP server for Claude",
+    "longDescription": "Runs Qwen-Image-2.1 on your own GPU and exposes it to Claude as an MCP server. The model weights (~15 GB) are downloaded on first run, to a folder you choose.",
+    "category": "Graphics",
+    "windows": {
+      "nsis": {
+        "installMode": "both",
+        "languages": [
+          "English"
+        ],
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico"
+      }
+    }
   }
 }

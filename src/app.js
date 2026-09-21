@@ -54,11 +54,13 @@ function renderHead(s, blue) {
 
     word.textContent = busy ? "Installing" : "Install";
     if (!busy) {
-      sub.textContent = "Downloads 15.0 GB. Pick a model tier — the rest is required.";
+      const short = s.free_bytes > 0 && s.free_bytes < s.needed_bytes;
+      sub.textContent = `Downloads ${GB(s.needed_bytes)} GB. Pick a model tier — the rest is required.`;
       btn.hidden = false;
-      btn.textContent = `Download ${GB(all || 15e9)} GB`;
+      btn.textContent = `Download ${GB(s.needed_bytes)} GB`;
       btn.className = "pill lg";
-      btn.onclick = () => invoke("start_install");
+      btn.disabled = short;
+      btn.onclick = short ? null : () => invoke("start_install");
     } else if (paused) {
       sub.textContent = `Paused at ${pct}% · ${GB(all - got)} GB left`;
       btn.hidden = false;
@@ -166,7 +168,22 @@ function renderInstall(s, blue) {
   $("also").textContent = busy
     ? ""
     : "Also: text encoder 4.68 · vision projector 1.08 · VAE 0.63 · engine 0.33 · CUDA runtime 0.56 GB";
-  $("path").textContent = busy ? "" : `to ${s.root}\\models`;
+  const drive = (s.root.match(/^[A-Za-z]:/) || ["the disk"])[0];
+  const tight = s.free_bytes > 0 && s.free_bytes < s.needed_bytes;
+  const pathEl = $("path");
+  pathEl.className = "foot" + (tight ? " bad" : "");
+  paint(
+    pathEl,
+    busy
+      ? ""
+      : tight
+        ? `Not enough space on ${drive} — ${GB(s.needed_bytes)} GB needed, ${GB(s.free_bytes)} GB free. <button class="link" id="change">Change</button>`
+        : `to ${s.root}\models · ${GB(s.free_bytes)} GB free · <button class="link" id="change">Change</button>`,
+    () => {
+      const c = document.getElementById("change");
+      if (c) c.onclick = () => invoke("change_root");
+    }
+  );
   $("hint").textContent = busy
     ? "Closing the window pauses the download. It picks up where it left off next time."
     : "";

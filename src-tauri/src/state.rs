@@ -70,6 +70,9 @@ pub struct Snapshot {
     pub downloads: Vec<DlRow>,
     pub gallery: Vec<GalleryItem>,
     pub root: String,
+    /// Free space on the volume holding `root`, and what the install needs.
+    pub free_bytes: u64,
+    pub needed_bytes: u64,
 }
 
 pub struct AppState {
@@ -145,6 +148,23 @@ impl AppState {
         out
     }
 
+    /// True when some file is on disk but incomplete — a download that was interrupted
+    /// rather than one that was never started. Only the former resumes by itself.
+    pub fn install_in_progress(&self, cfg: &Config) -> bool {
+        let m = cfg.models_dir();
+        let partial = |p: std::path::PathBuf, want: u64| {
+            matches!(p.metadata().map(|x| x.len()), Ok(n) if n > 0 && n < want)
+        };
+        crate::config::ASSETS.iter().any(|a| {
+            let dir = if a.unzip { cfg.bin_dir() } else { m.clone() };
+            partial(dir.join(a.file), a.size)
+        }) || {
+            // Only the selected tier is ever fetched, so only its leftovers count.
+            let t = crate::config::tier(&cfg.tier);
+            partial(m.join(t.file), t.size)
+        }
+    }
+
     fn tier_views(&self, cfg: &Config) -> Vec<TierView> {
         let m = cfg.models_dir();
         TIERS
@@ -210,6 +230,8 @@ impl AppState {
             downloads,
             gallery,
             root: cfg.root.to_string_lossy().to_string(),
+            free_bytes: crate::config::free_bytes(&cfg.root).unwrap_or(0),
+            needed_bytes: crate::config::install_size(&cfg.tier),
         }
     }
 

@@ -240,6 +240,41 @@ async fn reveal(st: State<'_, Shared>, path: Option<String>) -> Result<(), Strin
         .map_err(|e| e.to_string())
 }
 
+/// Moves the install location. Only offered before anything is downloaded, so there
+/// is nothing to migrate: whatever is missing at the new root is simply fetched.
+#[tauri::command]
+async fn change_root(st: State<'_, Shared>) -> Result<(), String> {
+    use tauri_plugin_dialog::DialogExt;
+    let h = st.handle.get().ok_or("no app handle")?.clone();
+    let current = st.cfg.lock().await.root.clone();
+
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    h.dialog()
+        .file()
+        .set_title("Where should the models go?")
+        .set_directory(current.parent().unwrap_or(&current))
+        .pick_folder(move |p| {
+            let _ = tx.send(p);
+        });
+
+    let Ok(Some(picked)) = rx.await else {
+        return Ok(());
+    };
+    let path = picked.into_path().map_err(|e| e.to_string())?;
+    {
+        let mut c = st.cfg.lock().await;
+        c.root = path;
+        c.save(&st.cfg_path);
+    }
+    let cfg = st.cfg.lock().await.clone();
+    std::fs::create_dir_all(cfg.outputs_dir()).ok();
+    h.asset_protocol_scope()
+        .allow_directory(cfg.outputs_dir(), false)
+        .ok();
+    st.emit().await;
+    Ok(())
+}
+
 /// Diagnostics channel for the webview: a silent render failure looks like a frozen app.
 #[tauri::command]
 fn ui_log(msg: String) {
@@ -342,12 +377,7 @@ pub fn run() {
                 .app_config_dir()
                 .unwrap_or_else(|_| std::path::PathBuf::from("."));
             let cfg_path = dir.join("config.json");
-            let default_root = std::env::current_dir()
-                .unwrap_or_else(|_| std::path::PathBuf::from("."))
-                .parent()
-                .map(|p| p.to_path_buf())
-                .unwrap_or_else(|| std::path::PathBuf::from("."));
-            let cfg = Config::load(&cfg_path, default_root);
+            let cfg = Config::load(&cfg_path, config::default_root());
             cfg.save(&cfg_path);
 
             // The gallery renders files straight off disk, so the outputs folder has to
@@ -367,8 +397,10 @@ pub fn run() {
             if cfg.tunnel_enabled {
                 tauri::async_runtime::spawn(tunnel::start(st.clone()));
             }
-            // Resume an interrupted install without asking; the moving bar says it.
-            if !st.missing_files(&cfg).is_empty() {
+            // Resume an interrupted install without asking — the moving bar says it.
+            // A fresh install waits for the blue Download button instead: nobody wants
+            // 15 GB to start moving because they opened a window.
+            if !st.missing_files(&cfg).is_empty() && st.install_in_progress(&cfg) {
                 tauri::async_runtime::spawn(download::install(st.clone()));
             }
 
@@ -396,6 +428,7 @@ pub fn run() {
             test_generate,
             reveal,
             show_log,
+            change_root,
             ui_log
         ])
         .run(tauri::generate_context!())
