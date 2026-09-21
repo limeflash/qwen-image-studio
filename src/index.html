@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Qwen Image Studio</title>
+<link rel="stylesheet" href="app.css" />
+</head>
+<body>
+
+<!-- Shared heading slot: state on the left, its control on the right. -->
+<header class="head">
+  <div class="head-left">
+    <span id="dot" class="dot"></span>
+    <h1 id="word">Install</h1>
+  </div>
+  <button id="primary" class="pill lg"></button>
+</header>
+<p id="subline" class="subline" aria-live="polite"></p>
+
+<!-- ------------------------------------------------------------ install -->
+<main id="screen-install" hidden>
+  <div id="bar" class="bar"></div>
+
+  <ul id="rows" class="rows"></ul>
+
+  <div id="tiers-install" class="tiers"></div>
+  <p id="also" class="also"></p>
+  <p id="path" class="foot"></p>
+  <p id="hint" class="foot"></p>
+</main>
+
+<!-- ------------------------------------------------------------ panel -->
+<main id="screen-panel" hidden>
+  <div class="gauge-head">
+    <span class="rowlabel">VRAM</span>
+    <span id="legend" class="legend"></span>
+    <span id="readout" class="readout"></span>
+  </div>
+  <div id="gauge" class="bar gauge">
+    <span id="peak" class="peak" hidden></span>
+  </div>
+
+  <div id="tiers-panel" class="tiers"></div>
+
+  <hr class="rule" />
+
+  <span class="section">Connect</span>
+  <div class="urlrow">
+    <span class="rowlabel">Local</span>
+    <span id="local-url" class="url mono"></span>
+    <button id="copy-local" class="pill sm ghost">Copy</button>
+  </div>
+  <div class="urlrow">
+    <span class="rowlabel">Tunnel</span>
+    <span id="tunnel-url" class="url mono"></span>
+    <button id="copy-tunnel" class="pill sm ghost">Copy</button>
+    <button id="toggle" class="toggle" role="switch" aria-label="Tunnel"></button>
+  </div>
+  <p id="notice" class="notice"></p>
+
+  <hr class="rule" />
+
+  <div class="prompt">
+    <input id="prompt" type="text" placeholder="Try a prompt" />
+    <button id="generate" class="pill sm ghost">Generate</button>
+  </div>
+
+  <div class="gallery-head">
+    <span id="recent" class="section">Recent</span>
+    <button id="open-folder" class="link">Open folder</button>
+  </div>
+  <div id="gallery" class="gallery"></div>
+</main>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

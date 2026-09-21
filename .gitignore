@@ -1,0 +1,14 @@
+# Weights and binaries: ~15 GB, fetched by the app on first run.
+/models/
+/bin/
+/outputs/
+
+# Rust
+/src-tauri/target/
+/src-tauri/gen/
+
+# The local config holds the MCP secret.
+config.json
+
+# Serena workspace
+/.serena/

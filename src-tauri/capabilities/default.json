@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The panel listens for state snapshots, retitles its own window, and opens the outputs folder and the engine log in the shell.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-set-title",
+    "opener:allow-open-path",
+    "opener:allow-reveal-item-in-dir"
+  ]
+}
