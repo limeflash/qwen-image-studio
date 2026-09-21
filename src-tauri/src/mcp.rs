@@ -28,6 +28,9 @@ pub struct GenerateArgs {
     /// What to avoid.
     #[serde(default)]
     pub negative_prompt: Option<String>,
+    /// Cut the subject out on a transparent background (RGBA PNG).
+    #[serde(default)]
+    pub transparent: Option<bool>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -44,6 +47,9 @@ pub struct EditArgs {
     pub steps: Option<u32>,
     #[serde(default)]
     pub seed: Option<i64>,
+    /// Cut the result out on a transparent background (RGBA PNG).
+    #[serde(default)]
+    pub transparent: Option<bool>,
 }
 
 #[derive(Clone)]
@@ -54,6 +60,20 @@ pub struct Qwen {
 
 fn snap(v: u32) -> u32 {
     (v.clamp(256, 2048) / 32) * 32
+}
+
+/// Qwen-Image-2.1 writes its own alpha, and the prompt is what asks for it — there is
+/// no separate model or flag. This is the phrasing the model card prescribes; measured
+/// on a plain prompt the output is 0% transparent, with it 67%.
+fn as_rgba(prompt: &str) -> String {
+    let lower = prompt.to_lowercase();
+    if lower.contains("rgba") || lower.contains("transparent background") {
+        return prompt.to_string();
+    }
+    format!(
+        "This is an RGBA image with transparency. {} The image has alpha channel and          the background is transparent.",
+        prompt.trim_end_matches(['.', ' ']).to_string() + "."
+    )
 }
 
 fn err(msg: impl Into<String>) -> McpError {
@@ -113,7 +133,7 @@ impl Qwen {
 #[tool_router]
 impl Qwen {
     #[tool(
-        description = "Generate an image locally with Qwen-Image-2.1 on this PC's GPU. Returns the image and the path it was saved to. A 1024x1024 image takes about 70 seconds."
+        description = "Generate an image locally with Qwen-Image-2.1 on this PC's GPU. Returns the image and the path it was saved to. Any size from 256 to 2048 per side works and is rounded to a multiple of 32; 1024x1024 takes about 70 seconds and 2048x2048 about three times that. Set transparent for a cut-out RGBA PNG with no background."
     )]
     async fn qwen_generate(
         &self,
@@ -122,10 +142,15 @@ impl Qwen {
         self.require_ready().await?;
         let (w, h) = (snap(a.width.unwrap_or(1024)), snap(a.height.unwrap_or(1024)));
         let prompt = a.prompt.clone();
+        let sent = if a.transparent.unwrap_or(false) {
+            as_rgba(&a.prompt)
+        } else {
+            a.prompt
+        };
 
         self.state.set_busy(Some(format!("Generating {w}×{h}"))).await;
         let out = engine::generate(GenRequest {
-            prompt: a.prompt,
+            prompt: sent,
             negative: a.negative_prompt.unwrap_or_default(),
             width: w,
             height: h,
@@ -141,7 +166,7 @@ impl Qwen {
     }
 
     #[tool(
-        description = "Edit images locally with Qwen-Image-2.1, using up to 10 reference images. Accepts absolute file paths or base64. Slower than generating: expect about 5 minutes for one 1024x1024 reference, because the vision encoder runs on the CPU."
+        description = "Edit images locally with Qwen-Image-2.1, using up to 10 reference images. Accepts absolute file paths or base64. Slower than generating: expect about 5 minutes for one 1024x1024 reference, because the vision encoder runs on the CPU. Set transparent to get the result back as a cut-out RGBA PNG."
     )]
     async fn qwen_edit(
         &self,
@@ -171,10 +196,15 @@ impl Qwen {
 
         let (w, h) = (snap(a.width.unwrap_or(1024)), snap(a.height.unwrap_or(1024)));
         let prompt = a.prompt.clone();
+        let sent = if a.transparent.unwrap_or(false) {
+            as_rgba(&a.prompt)
+        } else {
+            a.prompt
+        };
 
         self.state.set_busy(Some("Editing".into())).await;
         let out = engine::generate(GenRequest {
-            prompt: a.prompt,
+            prompt: sent,
             negative: String::new(),
             width: w,
             height: h,

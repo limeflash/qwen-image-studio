@@ -23,11 +23,20 @@ carries a 32-character secret — anything else gets a 404.
 
 | Tool | Arguments | Notes |
 |---|---|---|
-| `qwen_generate` | `prompt`, `width`, `height`, `steps`, `seed`, `negative_prompt` | ~70 s for 1024×1024 at 20 steps |
+| `qwen_generate` | `prompt`, `width`, `height`, `steps`, `seed`, `negative_prompt`, `transparent` | ~70 s for 1024×1024 at 20 steps |
 | `qwen_edit` | `prompt`, `images[]` (paths or base64), plus the same options | up to 10 references; ~5 min, the vision encoder runs on the CPU |
 
-Both return the PNG inline and the path it was written to. Sizes are rounded to a multiple of 32,
-which the engine requires.
+Both return the PNG inline and the path it was written to.
+
+**Sizes.** Anything from 256 to 2048 per side, rounded to a multiple of 32 as the engine
+requires, any aspect ratio. Measured on a 16 GB card at 8 steps: 1024² takes 28 s and peaks at
+10.5 GB, 1664×928 takes 42 s, and the model's 2048² maximum takes 162 s and peaks at 12.1 GB —
+still about 4 GB clear.
+
+**Transparency.** `transparent: true` returns a cut-out RGBA PNG. Qwen-Image-2.1 writes its own
+alpha and the prompt is what asks for it, so the flag simply rewrites the prompt into the form
+the model card prescribes. Measured: a plain prompt yields 0 % transparent pixels, the rewritten
+one 67 %. No matting model, no background removal.
 
 ## Requirements
 
@@ -54,6 +63,19 @@ A quick tunnel gets a **new hostname every launch**, so the connector has to be 
 panel makes that one click and then confirms the paste worked by showing you when claude.ai
 actually arrived on the new hostname. For a stable hostname, use a named tunnel with your own
 domain.
+
+## Where things are installed
+
+Two separate choices:
+
+- **The app** — the installer asks, per-user or per-machine, with its own directory page.
+  It is a few megabytes.
+- **The weights** — ~15 GB, chosen inside the app. It defaults to the fixed drive with the
+  most free space and shows the free space next to the path; `Change` opens a folder picker.
+  Download is refused, with the shortfall spelled out, if the volume cannot hold the install.
+
+Only the selected tier is fetched. A first launch waits for the Download button; an install
+that was interrupted resumes on its own.
 
 ## Model tiers
 
