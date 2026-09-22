@@ -68,8 +68,15 @@ fn args(cfg: &Config) -> Vec<String> {
         "te=cpu,diffusion=cuda0,vae=cuda0".into(),
         "--backend".into(),
         "te=cpu".into(),
-        "--diffusion-fa".into(),
+        // SageAttention measured 56.1 s against flash attention's 65.1 s at 1024² / 20
+        // steps, with the two images visually indistinguishable at the same seed.
+        "--sage-attn".into(),
         "--vae-tiling".into(),
+        // Without this sd.cpp reads the weights lazily, on the first generation: "Ready"
+        // lights up before anything has been read and the whole disk cost lands on the
+        // first image (measured: 130 s off a hard drive). Loading them up front puts that
+        // wait in the Loading state, where the counter already is.
+        "--eager-load".into(),
         "--cfg-scale".into(),
         "6.0".into(),
         "--listen-ip".into(),
@@ -203,12 +210,12 @@ fn friendly(raw: &str) -> String {
     }
 }
 
-/// Measured: 1024² at 20 steps takes about 75 s, and the cost tracks pixel count
-/// almost linearly (2048² came in at roughly six times 1024²). Good enough to put a
-/// number beside the elapsed seconds instead of inventing a progress bar.
+/// Measured with SageAttention on an RTX 4070: 1024² at 20 steps takes 56 s, and the
+/// cost tracks pixel count almost linearly. Good enough to put a number beside the
+/// elapsed seconds instead of inventing a progress bar.
 pub fn eta_secs(w: u32, h: u32, steps: u32) -> u64 {
     let px = (w as f64 * h as f64) / (1024.0 * 1024.0);
-    (px * 75.0 * (steps as f64 / 20.0)).round().max(5.0) as u64
+    (px * 56.0 * (steps as f64 / 20.0)).round().max(5.0) as u64
 }
 
 /// (used MiB, total MiB). Returns None when nvidia-smi is unavailable.

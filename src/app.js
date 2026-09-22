@@ -12,7 +12,8 @@ let S = null;
 let copiedUntil = 0;
 let copiedWhich = null;
 
-/* Measured on a 16 GB card: cost tracks pixel count, 1024² ≈ 75 s at 20 steps. */
+/* Measured with SageAttention on a 16 GB card: 1024² ≈ 56 s at 20 steps, and the
+   cost tracks pixel count. */
 const SIZES = [
   { w: 1024, h: 1024, rw: 9, rh: 9 },
   { w: 1664, h: 928, rw: 12, rh: 7 },
@@ -21,7 +22,7 @@ const SIZES = [
 ];
 let size = SIZES[0];
 let alpha = false;
-const etaOf = (s) => Math.round((s.w * s.h) / (1024 * 1024) * 75);
+const etaOf = (s) => Math.round((s.w * s.h) / (1024 * 1024) * 56);
 const etaText = (sec) => (sec < 90 ? `${Math.round(sec / 5) * 5} s` : `${Math.round(sec / 60)} min`);
 
 /* The panel re-renders every second. Writing identical innerHTML still restarts CSS
