@@ -201,9 +201,15 @@ function renderInstall(s, blue) {
       if (c) c.onclick = () => invoke("change_root");
     }
   );
-  $("hint").textContent = busy
-    ? "Closing the window pauses the download. It picks up where it left off next time."
-    : "";
+  // Four rows all saying "can't reach huggingface.co" state the fact but not the cure.
+  const blocked = s.downloads.filter((d) => d.note.includes("can't reach"));
+  $("hint").className = "foot" + (blocked.length ? " bad" : "");
+  $("hint").textContent = blocked.length
+    ? `${blocked[0].note.replace("failed · can't reach ", "")} is unreachable from this network. ` +
+      "A VPN fixes it, or set HF_ENDPOINT to a proxy that mirrors it and reopen the app."
+    : busy
+      ? "Closing the window pauses the download. It picks up where it left off next time."
+      : "";
 }
 
 /* ----------------------------------------------------------------- tiers */

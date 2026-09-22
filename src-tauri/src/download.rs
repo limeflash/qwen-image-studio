@@ -7,6 +7,30 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::time::Duration;
 
+/// huggingface.co is unreachable on a fair number of ISPs, which is indistinguishable
+/// from a stall unless the error is actually read — so it is, and the row says which
+/// host could not be reached instead of blaming the network in general.
+///
+/// `HF_ENDPOINT` redirects every Hugging Face URL at a proxy or private mirror, the same
+/// variable huggingface_hub itself honours. No default is baked in: hf-mirror.com, the
+/// usual suggestion, answers 308 straight back to huggingface.co, so it would help
+/// nobody who cannot reach that host in the first place.
+const HF: &str = "https://huggingface.co/";
+
+fn endpoint(url: &str) -> String {
+    match std::env::var("HF_ENDPOINT") {
+        Ok(base) if !base.trim().is_empty() => match url.strip_prefix(HF) {
+            Some(rest) => format!("{}/{rest}", base.trim().trim_end_matches('/')),
+            None => url.to_string(),
+        },
+        _ => url.to_string(),
+    }
+}
+
+fn host_of(url: &str) -> &str {
+    url.split('/').nth(2).unwrap_or(url)
+}
+
 /// No bytes for this long counts as a stall.
 const STALL: Duration = Duration::from_secs(30);
 const ATTEMPTS: u32 = 3;
@@ -81,7 +105,8 @@ async fn fetch(state: &Shared, item: &Item, client: &reqwest::Client) -> Result<
         return Ok(());
     }
 
-    let sha = expected_sha(client, &item.url).await;
+    let url = endpoint(&item.url);
+    let sha = expected_sha(client, &url).await;
 
     for attempt in 1..=ATTEMPTS {
         let have = item.dest.metadata().map(|m| m.len()).unwrap_or(0);
@@ -97,13 +122,24 @@ async fn fetch(state: &Shared, item: &Item, client: &reqwest::Client) -> Result<
         });
         state.emit().await;
 
-        let mut req = client.get(&item.url);
+        let mut req = client.get(&url);
         if have > 0 {
             req = req.header("Range", format!("bytes={have}-"));
         }
         let resp = match req.send().await {
             Ok(r) => r,
-            Err(_) => {
+            Err(e) => {
+                // Never reached the server at all. Retrying a blocked host two more
+                // times only delays the news, so this fails immediately and names it.
+                if e.is_connect() || e.is_request() {
+                    let host = host_of(&url).to_string();
+                    set(state, &item.id, |r| {
+                        r.state = DlState::Failed;
+                        r.note = format!("failed · can't reach {host}");
+                    });
+                    state.emit().await;
+                    bail!("cannot reach {host}");
+                }
                 set(state, &item.id, |r| {
                     r.state = DlState::Stalled;
                     r.note = format!("stalled · retrying ({attempt}/{ATTEMPTS})");

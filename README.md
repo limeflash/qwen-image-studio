@@ -77,6 +77,18 @@ Two separate choices:
 Only the selected tier is fetched. A first launch waits for the Download button; an install
 that was interrupted resumes on its own.
 
+### If the weights will not download
+
+The engine and CUDA runtime come from GitHub; everything else comes from Hugging Face, which a
+fair number of ISPs block. When that happens each row says `failed · can't reach huggingface.co`
+rather than blaming the network in general, and the app fails fast instead of spending its retry
+budget on a host that is never going to answer.
+
+A VPN is the simple fix. Otherwise set `HF_ENDPOINT` to a proxy that mirrors Hugging Face and
+reopen the app — the same variable `huggingface_hub` honours. No mirror is built in on purpose:
+`hf-mirror.com`, the usual suggestion, answers `308` straight back to `huggingface.co`, so it is
+no help to anyone who cannot reach that host to begin with.
+
 ## Model tiers
 
 Picked in the app; switching requires an engine restart.
