@@ -27,6 +27,13 @@
   <p id="also" class="also"></p>
   <p id="path" class="foot"></p>
   <p id="hint" class="foot"></p>
+
+  <!-- Only drawn when a host cannot be reached: the cure, where the problem is stated. -->
+  <div id="proxy" class="proxy" hidden>
+    <label class="sr" for="proxy-url">Hugging Face proxy</label>
+    <input id="proxy-url" type="text" placeholder="https://your-proxy.example/…" spellcheck="false" />
+    <button id="proxy-save" class="pill sm ghost">Use</button>
+  </div>
 </main>
 
 <!-- ------------------------------------------------------------ panel -->

@@ -11,18 +11,21 @@ use std::time::Duration;
 /// from a stall unless the error is actually read — so it is, and the row says which
 /// host could not be reached instead of blaming the network in general.
 ///
-/// `HF_ENDPOINT` redirects every Hugging Face URL at a proxy or private mirror, the same
-/// variable huggingface_hub itself honours. No default is baked in: hf-mirror.com, the
-/// usual suggestion, answers 308 straight back to huggingface.co, so it would help
-/// nobody who cannot reach that host in the first place.
+/// The proxy set in the panel (or `HF_ENDPOINT`, the variable huggingface_hub honours)
+/// redirects every Hugging Face URL. No default is baked in: hf-mirror.com, the usual
+/// suggestion, answers 308 straight back to huggingface.co, so it would help nobody who
+/// cannot reach that host in the first place.
 const HF: &str = "https://huggingface.co/";
 
-fn endpoint(url: &str) -> String {
-    match std::env::var("HF_ENDPOINT") {
-        Ok(base) if !base.trim().is_empty() => match url.strip_prefix(HF) {
-            Some(rest) => format!("{}/{rest}", base.trim().trim_end_matches('/')),
-            None => url.to_string(),
-        },
+fn endpoint(url: &str, configured: &str) -> String {
+    let base = if configured.trim().is_empty() {
+        std::env::var("HF_ENDPOINT").unwrap_or_default()
+    } else {
+        configured.to_string()
+    };
+    let base = base.trim().trim_end_matches('/');
+    match (base.is_empty(), url.strip_prefix(HF)) {
+        (false, Some(rest)) => format!("{base}/{rest}"),
         _ => url.to_string(),
     }
 }
@@ -90,7 +93,12 @@ async fn expected_sha(client: &reqwest::Client, url: &str) -> Option<String> {
     Some(v.trim_matches('"').to_lowercase())
 }
 
-async fn fetch(state: &Shared, item: &Item, client: &reqwest::Client) -> Result<()> {
+async fn fetch(
+    state: &Shared,
+    item: &Item,
+    client: &reqwest::Client,
+    hf_endpoint: &str,
+) -> Result<()> {
     if let Some(dir) = item.dest.parent() {
         std::fs::create_dir_all(dir)?;
     }
@@ -105,7 +113,7 @@ async fn fetch(state: &Shared, item: &Item, client: &reqwest::Client) -> Result<
         return Ok(());
     }
 
-    let url = endpoint(&item.url);
+    let url = endpoint(&item.url, hf_endpoint);
     let sha = expected_sha(client, &url).await;
 
     for attempt in 1..=ATTEMPTS {
@@ -330,8 +338,9 @@ pub async fn install(state: Shared) {
     for item in items {
         let st = state.clone();
         let cl = client.clone();
+        let ep = cfg.hf_endpoint.clone();
         set_js.spawn(async move {
-            let _ = fetch(&st, &item, &cl).await;
+            let _ = fetch(&st, &item, &cl, &ep).await;
         });
     }
     while set_js.join_next().await.is_some() {}
@@ -346,6 +355,6 @@ pub async fn retry(state: Shared, id: String) {
         return;
     };
     let client = reqwest::Client::new();
-    let _ = fetch(&state, &item, &client).await;
+    let _ = fetch(&state, &item, &client, &cfg.hf_endpoint).await;
     state.emit().await;
 }

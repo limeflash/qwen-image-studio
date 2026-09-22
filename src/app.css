@@ -326,6 +326,32 @@ h1 {
 .toggle.on::after { background: #000; transform: translateX(14px); }
 .toggle.busy { opacity: .6; pointer-events: none; }
 
+/* ------------------------------------------------------------ proxy field */
+
+.proxy {
+  margin-top: 8px;
+  width: 560px;
+  height: 32px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  padding-right: 4px;
+}
+.proxy[hidden] { display: none; }
+.proxy input {
+  flex-grow: 1;
+  border: 0; background: none; outline: none;
+  color: var(--fg);
+  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  font-size: 13px;
+  padding: 0 12px;
+  user-select: text;
+}
+.proxy input::placeholder { color: var(--fg-3); }
+.proxy .pill.ghost { background: var(--surface-3); }
+.proxy .pill.ghost:hover { background: var(--surface-2); }
+
 /* ------------------------------------------------------------ size chips */
 
 .sizes {

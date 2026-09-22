@@ -201,15 +201,21 @@ function renderInstall(s, blue) {
       if (c) c.onclick = () => invoke("change_root");
     }
   );
-  // Four rows all saying "can't reach huggingface.co" state the fact but not the cure.
+  // Four rows all saying "can't reach huggingface.co" state the fact but not the cure,
+  // so the cure appears right under it rather than in a settings screen that does not exist.
   const blocked = s.downloads.filter((d) => d.note.includes("can't reach"));
+  const host = blocked.length ? blocked[0].note.replace("failed · can't reach ", "") : "";
   $("hint").className = "foot" + (blocked.length ? " bad" : "");
   $("hint").textContent = blocked.length
-    ? `${blocked[0].note.replace("failed · can't reach ", "")} is unreachable from this network. ` +
-      "A VPN fixes it, or set HF_ENDPOINT to a proxy that mirrors it and reopen the app."
+    ? `${host} is unreachable from this network. Turn on a VPN and press Retry, or give a proxy that mirrors it:`
     : busy
       ? "Closing the window pauses the download. It picks up where it left off next time."
       : "";
+
+  const proxy = $("proxy"), field = $("proxy-url");
+  proxy.hidden = !blocked.length;
+  if (blocked.length && document.activeElement !== field && field.value !== s.hf_endpoint)
+    field.value = s.hf_endpoint || "";
 }
 
 /* ----------------------------------------------------------------- tiers */
@@ -446,6 +452,17 @@ function render_(s) {
 
 $("copy-local").onclick = () => copy(S?.local_url, "local");
 $("open-folder").onclick = () => invoke("reveal", { path: null });
+
+/* Saved and applied to the next attempt; no restart, because a person who just hit a
+   wall should not be told to close the app. */
+const saveProxy = async () => {
+  await invoke("set_hf_endpoint", { url: $("proxy-url").value.trim() });
+  (S?.downloads || [])
+    .filter((d) => d.state === "failed")
+    .forEach((d) => invoke("retry_download", { id: d.id }));
+};
+$("proxy-save").onclick = saveProxy;
+$("proxy-url").onkeydown = (e) => { if (e.key === "Enter") saveProxy(); };
 $("generate").onclick = () => {
   const v = $("prompt").value.trim();
   if (!v) return;

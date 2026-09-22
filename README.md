@@ -70,9 +70,13 @@ Two separate choices:
 
 - **The app** — the installer asks, per-user or per-machine, with its own directory page.
   It is a few megabytes.
-- **The weights** — ~15 GB, chosen inside the app. It defaults to the fixed drive with the
-  most free space and shows the free space next to the path; `Change` opens a folder picker.
-  Download is refused, with the shortfall spelled out, if the volume cannot hold the install.
+- **The weights** — ~15 GB, on the same drive the installer was pointed at: install to `H:` and
+  they go to `H:\Qwen Image Studio`, not into Program Files, which would need admin to write.
+  `Change` opens a folder picker, the free space is shown beside the path, and Download is
+  refused with the shortfall spelled out if the volume cannot hold the install.
+
+  A folder remembered from an earlier install is only reused when something is actually in it;
+  an empty one on another drive is a leftover, and the app follows the installer instead.
 
 Only the selected tier is fetched. A first launch waits for the Download button; an install
 that was interrupted resumes on its own.
@@ -84,10 +88,13 @@ fair number of ISPs block. When that happens each row says `failed · can't reac
 rather than blaming the network in general, and the app fails fast instead of spending its retry
 budget on a host that is never going to answer.
 
-A VPN is the simple fix. Otherwise set `HF_ENDPOINT` to a proxy that mirrors Hugging Face and
-reopen the app — the same variable `huggingface_hub` honours. No mirror is built in on purpose:
-`hf-mirror.com`, the usual suggestion, answers `308` straight back to `huggingface.co`, so it is
-no help to anyone who cannot reach that host to begin with.
+A VPN is the simple fix: turn it on and press Retry. Otherwise a field appears under the failed
+rows — paste a proxy that mirrors Hugging Face into it and the failed files start again straight
+away, no restart. It is saved, and `HF_ENDPOINT` works too, the same variable `huggingface_hub`
+honours.
+
+No mirror is built in on purpose: `hf-mirror.com`, the usual suggestion, answers `308` straight
+back to `huggingface.co`, so it is no help to anyone who cannot reach that host to begin with.
 
 ## Model tiers
 

@@ -72,6 +72,7 @@ pub struct Snapshot {
     pub downloads: Vec<DlRow>,
     pub gallery: Vec<GalleryItem>,
     pub root: String,
+    pub hf_endpoint: String,
     /// Free space on the volume holding `root`, and what the install needs.
     pub free_bytes: u64,
     pub needed_bytes: u64,
@@ -238,6 +239,7 @@ impl AppState {
             downloads,
             gallery,
             root: cfg.root.to_string_lossy().to_string(),
+            hf_endpoint: cfg.hf_endpoint.clone(),
             free_bytes: crate::config::free_bytes(&cfg.root).unwrap_or(0),
             needed_bytes: crate::config::install_size(&cfg.tier),
         }

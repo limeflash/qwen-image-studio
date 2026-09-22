@@ -199,7 +199,7 @@ async fn test_generate(
         // The model writes its own alpha; asking for it is a prompt, not a flag.
         let sent = if transparent {
             format!(
-                "This is an RGBA image with transparency. {}. The image has alpha channel                  and the background is transparent.",
+                "This is an RGBA image with transparency. {}.                  The image has alpha channel and the background is transparent.",
                 prompt.trim_end_matches(['.', ' '])
             )
         } else {
@@ -292,6 +292,19 @@ async fn change_root(st: State<'_, Shared>) -> Result<(), String> {
     h.asset_protocol_scope()
         .allow_directory(cfg.outputs_dir(), false)
         .ok();
+    st.emit().await;
+    Ok(())
+}
+
+/// A proxy standing in for huggingface.co, for networks that block it. Saved so the
+/// person types it once, and applied to the next attempt without a restart.
+#[tauri::command]
+async fn set_hf_endpoint(st: State<'_, Shared>, url: String) -> Result<(), String> {
+    {
+        let mut c = st.cfg.lock().await;
+        c.hf_endpoint = url.trim().to_string();
+        c.save(&st.cfg_path);
+    }
     st.emit().await;
     Ok(())
 }
@@ -398,7 +411,16 @@ pub fn run() {
                 .app_config_dir()
                 .unwrap_or_else(|_| std::path::PathBuf::from("."));
             let cfg_path = dir.join("config.json");
-            let cfg = Config::load(&cfg_path, config::default_root());
+            let mut cfg = Config::load(&cfg_path, config::default_root());
+
+            // The weights belong beside the app. If the remembered folder holds nothing
+            // at all and the app now runs from a different drive, that folder is a
+            // leftover from a previous install: follow the installer instead. A folder
+            // with anything in it — finished or half-downloaded — is left alone.
+            let fresh = config::default_root();
+            if cfg.root != fresh && !cfg.models_dir().exists() && !cfg.bin_dir().exists() {
+                cfg.root = fresh;
+            }
             cfg.save(&cfg_path);
 
             // The gallery renders files straight off disk, so the outputs folder has to
@@ -450,6 +472,7 @@ pub fn run() {
             reveal,
             show_log,
             change_root,
+            set_hf_endpoint,
             ui_log
         ])
         .run(tauri::generate_context!())
